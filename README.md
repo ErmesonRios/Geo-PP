@@ -21,5 +21,5 @@
 - **HTML/CSS/JavaScript** – frontend web interativo
 - **gpsd** – daemon para visualização e parsing de dados GNSS
 - **RTKLIB (str2str)** – captura e streaming dos dados UBX
-- **Raspberry Pi Zero M2** – plataforma embarcada
+- **Raspberry Pi Zero 2w** – plataforma embarcada
 
