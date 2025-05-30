@@ -7,7 +7,7 @@ echo "📦 Instalando pacotes essenciais..."
 sudo apt install -y gpsd gpsd-clients hostapd dnsmasq git build-essential cmake
 
 echo "🟢 Instalando Node.js (versão LTS)..."
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt install -y nodejs
 
 echo "📁 Clonando e compilando RTKLIB..."

@@ -1,4 +1,4 @@
-const BACK_URL = "http://192.168.100.16:3000";
+const BACK_URL = "http://192.168.100.104:3000";
 const zipFileSvg = `
 <svg class="zipFile" xmlns="http://www.w3.org/2000/svg">
   <use href="#zipFile" />
