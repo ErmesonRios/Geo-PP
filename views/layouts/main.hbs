@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/css/main.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?
+  family=Montserrat:wght@400;700
+  &family=Open+Sans:wght@400;600
+  &display=swap"
+      rel="stylesheet"
+    />
+
+    {{#if style}}
+      <link rel="stylesheet" href="/css/{{style}}.css" />
+    {{/if}}
+    <title>GEOPPP</title>
+  </head>
+  <body>
+    <header>
+      <h1><a href="/">GEOPPP</a></a></h1>
+      <a id="route" href="/{{redirect}}">{{label}}</a>
+    </header>
+    <main>{{{body}}}</main>
+    <footer>
+      <p><span>&copy;</span> Lopes</p>
+    </footer>
+  </body>
+  <script src="/js/axios/dist/axios.min.js"></script>
+  <script>
+    const BACK_URL = "http://{{ip}}:3000"
+  </script>
+  {{#if script}}
+    <script src="/js/{{script}}.js"></script>
+  {{/if}}
+</html>
