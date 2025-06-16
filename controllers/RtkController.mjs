@@ -3,16 +3,20 @@ import path from "path";
 import fs from "fs";
 import archiver from "archiver";
 import { randomBytes } from "crypto";
-import GpsdController from "./GpsdController.mjs";
+import { getIO } from "../utils/socket.mjs";
+import getFileSize from "../utils/getFileSize.mjs";
 
 const __dirname = import.meta.dirname;
 const RECORDED_DIR = path.join(__dirname, "../recorded");
 
 class RtkController {
   static process = null;
+  static io = getIO();
 
   static async record(req, res) {
     const { name } = req.body;
+
+    if (!RtkController.io) RtkController.io = getIO();
 
     if (!name) {
       return res
@@ -22,21 +26,12 @@ class RtkController {
 
     const sanitizedName = RtkController.sanitizeFilename(name);
 
-    await GpsdController.stopListener();
-    await GpsdController.stopGpsdDaemon();
-
-    try {
-      await execa("sudo", ["killall", "gpsd"], { reject: false });
-    } catch (err) {}
-
-    // Pequena espera para liberar a porta serial de vez
-    await new Promise((r) => setTimeout(r, 200));
-
     if (!fs.existsSync(RECORDED_DIR)) {
       fs.mkdirSync(RECORDED_DIR, { recursive: true });
     }
 
     const date = RtkController.getDate();
+
     let fileName = `${date}-${sanitizedName}.ubx`;
     let filePath = path.join(RECORDED_DIR, fileName);
 
@@ -46,24 +41,21 @@ class RtkController {
     }
 
     try {
-      if (RtkController.process && !RtkController.process.killed) {
-        RtkController.process.kill("SIGKILL");
-      }
-
       const uri = `file://${filePath}`;
+
       RtkController.process = execa(
         "str2str",
-        ["-in", "serial://ttyACM0:115200:8:n:1#ubx", "-out", uri],
+        ["-in", "tcpcli://localhost:5000#ubx", "-out", uri],
         {
           timeout: 0,
           all: true,
-          reject: false,
         }
       );
 
-      RtkController.process.all?.on("data", (chunk) =>
-        console.log(chunk.toString())
-      );
+      RtkController.process.all?.on("data", async (chunk) => {
+        console.log(chunk.toString());
+        RtkController.io.emit("recording", await getFileSize([fileName]));
+      });
 
       res.json({ name: fileName, msg: "gravando..." });
     } catch (err) {
@@ -72,32 +64,25 @@ class RtkController {
     }
   }
 
-  static stopRecord(req, res) {
+  static stopRecord() {
     if (!RtkController.process) {
-      return res.status(400).send("O RTK não está gravando!");
+      return;
     }
 
     const proc = RtkController.process;
-    // Quando o processo realmente sair, respondemos ao cliente
     proc.once("exit", (code) => {
       if (code !== 0) {
         console.error(`str2str terminou com erro: ${code}`);
-        return res.status(500).send("Erro ao gravar");
       }
-      res.send("Gravação finalizada!");
     });
 
-    // Envia SIGTERM para encerrar o str2str
     proc.kill();
   }
 
   static async getAllRecorded() {
-    try {
-      const files = await fs.promises.readdir(RECORDED_DIR);
-      return files.filter((f) => f.endsWith(".ubx"));
-    } catch {
-      return [];
-    }
+    const files = await fs.promises.readdir(RECORDED_DIR);
+
+    return await getFileSize(files);
   }
 
   static async renameFile(req, res) {
@@ -107,13 +92,13 @@ class RtkController {
     }
 
     const oldPath = path.join(RECORDED_DIR, file);
-    const newPath = path.join(
-      RECORDED_DIR,
-      file.replace(
-        /^(\d{2}-\d{2}-\d{4}-)([^.]+)(\..+)$/,
-        `$1${RtkController.sanitizeFilename(newName)}`
-      )
+    const newFileName = file.replace(
+      /^(\d{2}-\d{2}-\d{4})(?:-(.*?))?(\..+)$/,
+      `$1-${RtkController.sanitizeFilename(newName)}`
     );
+    const newPath = path.join(RECORDED_DIR, newFileName);
+
+    console.log(oldPath, newPath);
 
     if (!fs.existsSync(oldPath)) {
       return res.status(404).send("Arquivo não encontrado!");
@@ -124,7 +109,7 @@ class RtkController {
 
     try {
       fs.renameSync(oldPath, newPath);
-      res.send("Arquivo renomeado com sucesso!");
+      res.json({ newName: newFileName });
     } catch {
       res.status(500).send("Erro ao renomear arquivo");
     }
@@ -173,16 +158,26 @@ class RtkController {
       return res.status(404).send("Arquivos não encontrados!");
     }
 
-    const zipName = `${RtkController.getDate()}.zip`;
-    const zipPath = path.join(RECORDED_DIR, zipName);
+    const date = RtkController.getDate();
+    let zipName = `${date}.zip`;
+    let zipPath = path.join(RECORDED_DIR, zipName);
+
+    if (fs.existsSync(zipPath)) {
+      zipName = `${date}-${RtkController.generateToken()}.zip`;
+      zipPath = path.join(RECORDED_DIR, zipName);
+    }
 
     try {
       const output = fs.createWriteStream(zipPath);
       const archive = archiver("zip", { zlib: { level: 9 } });
 
-      output.on("close", () => {
-        res.json({ msg: "Arquivo gerado com sucesso!", file: zipName });
+      output.on("close", async () => {
+        res.json({
+          msg: "Arquivo gerado com sucesso!",
+          file: await getFileSize([zipName]),
+        });
       });
+
       output.on("error", () => {
         res.status(500).send("Falha ao escrever o arquivo ZIP.");
       });
@@ -212,7 +207,6 @@ class RtkController {
 
   static sanitizeFilename(raw, replacement = "-") {
     const safe = raw.replace(/[\/\\\s]+/g, replacement);
-    console.log(safe);
     return safe;
   }
 

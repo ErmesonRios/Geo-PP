@@ -112,11 +112,15 @@ td {
   padding: 8px;
 }
 
+td.size {
+  text-align: center;
+}
+
 td svg.zipFile {
   fill: white;
   width: 20px;
   height: 20px;
-  vertical-align: bottom;
+  vertical-align: top;
 }
 
 td div {
@@ -243,4 +247,41 @@ div#renameContainer > div > div,
   display: flex;
   align-self: flex-end;
   gap: 20px;
+}
+
+div#gpsContainer {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+}
+
+/* GPSD */
+div#gpsdContainer {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 15px;
+  gap: 10px;
+  border: 3px solid white;
+  border-radius: 50%;
+  color: rgb(255, 255, 255);
+  animation: alert 0.5s alternate infinite;
+  aspect-ratio: 1/1;
+}
+
+#gpsdContainer svg {
+  width: 30px;
+  height: 30px;
+  fill: white;
+}
+
+#gpsdContainer span {
+  font-size: 1rem;
+}
+
+@keyframes alert {
+  to {
+    box-shadow: 0px 0px 10px white;
+  }
 }

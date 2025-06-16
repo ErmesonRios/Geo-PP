@@ -1,20 +1,19 @@
-import RtkController from "./RtkController.mjs";
 import gpsd from "node-gpsd";
+import { configDotenv } from "dotenv";
+import { execa } from "execa";
+configDotenv();
+
+const TCP_PORT = process.env.TCP_PORT;
 
 class GpsdController {
   static daemon = null;
   static listener = null;
+  static dateIsSet = false;
 
   static async gpsdStream(req, res) {
-    if (RtkController.process && !RtkController.process.killed) {
-      RtkController.process.kill();
-      await new Promise((resolve) => RtkController.process.on("exit", resolve));
+    if (!GpsdController.daemon) {
+      GpsdController.startGpsd();
     }
-
-    await GpsdController.stopListener();
-    await GpsdController.stopGpsdDaemon();
-
-    GpsdController.startGpsd();
 
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
@@ -22,25 +21,47 @@ class GpsdController {
       Connection: "keep-alive",
     });
 
-    const listener = new gpsd.Listener({
-      hostname: "localhost",
-      port: 2947,
-      parse: true,
-    });
-    GpsdController.listener = listener;
+    if (!GpsdController.listener) {
+      const listener = new gpsd.Listener({
+        hostname: "localhost",
+        port: 2947,
+        parse: true,
+      });
 
-    listener.connect(() => {
-      listener.watch({ class: "WATCH", json: true, nmea: false });
+      GpsdController.listener = listener;
+    }
+
+    GpsdController.listener.connect(() => {
+      GpsdController.listener.watch({
+        class: "WATCH",
+        json: true,
+        nmea: false,
+      });
     });
 
-    listener.on("SKY", (msg) => {
+    GpsdController.listener.on("SKY", (msg) => {
       if (Array.isArray(msg.satellites)) {
         const usedCount = msg.satellites.filter((s) => s.used).length;
         res.write(`data: ${usedCount}\n\n`);
       }
     });
 
-    listener.on("error", (err) => {
+    GpsdController.listener.on("TPV", async (msg) => {
+      if (GpsdController.dateIsSet || !msg.time) return;
+      const dt = new Date(msg.time);
+      const formatted = dt.toISOString().replace("T", " ").replace(/\..+/, "");
+
+      try {
+        await execa("sudo", ["timedatectl", "set-time", formatted]);
+        console.log(`Data/hora ajustadas para ${formatted} (UTC)`);
+
+        GpsdController.dateIsSet = true;
+      } catch (err) {
+        console.error("Erro ao ajustar data/hora:", err);
+      }
+    });
+
+    GpsdController.listener.on("error", (err) => {
       res.write(`event: error\ndata: ${err.message}\n\n`);
     });
 
@@ -56,7 +77,7 @@ class GpsdController {
     if (!GpsdController.daemon) {
       GpsdController.daemon = new gpsd.Daemon({
         program: "gpsd",
-        device: "/dev/ttyACM0",
+        device: `tcp://localhost:${TCP_PORT}`,
       });
       GpsdController.daemon.start();
     }

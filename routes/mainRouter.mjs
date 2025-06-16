@@ -2,6 +2,7 @@ import { Router } from "express";
 import RtkController from "../controllers/RtkController.mjs";
 import GpsdController from "../controllers/GpsdController.mjs";
 import getServerIPs from "../utils/getServerIPs.mjs";
+import { execa } from "execa";
 
 const router = Router();
 
@@ -18,12 +19,14 @@ router.get("/", async (req, res) => {
   });
 });
 
-router.get("/gpsd", (req, res) => {
-  res.render("gpsd", {
-    label: "Pagina Inicial",
-    style: "gpsd",
-    script: "gpsd",
-  });
+router.post("/powerOff", async (req, res) => {
+  try {
+    execa("sudo", ["shutdown", "-h", "now"]);
+
+    res.json({ offline: true });
+  } catch (err) {
+    console.error("Falha ao executar shutdown:", err);
+  }
 });
 
 router.post("/record", RtkController.record);

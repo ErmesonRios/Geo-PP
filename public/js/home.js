@@ -1,3 +1,7 @@
+import { io } from "socket.io-client";
+
+const socket = io(BACK_URL);
+
 const zipFileSvg = `
 <svg class="zipFile" xmlns="http://www.w3.org/2000/svg">
   <use href="#zipFile" />
@@ -9,12 +13,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const allBtnRename = Array.from(document.querySelectorAll(".btnRename"));
   const allBtnDelete = Array.from(document.querySelectorAll(".btnDelete"));
 
+  const btnPower = document.querySelector("#powerOff");
+
+  const log = document.getElementById("log");
+
   const btnRecord = document.querySelector("#btnRecord");
   const icon = document.querySelector("#icon");
   const label = document.querySelector("#label");
   const tbody = document.querySelector("tbody");
-
-  const btnRedirect = document.querySelector("#route");
 
   // Rename
   const renameContainer = document.querySelector("#renameContainer");
@@ -52,7 +58,7 @@ document.addEventListener("DOMContentLoaded", () => {
   divTime.appendChild(time);
 
   let intervalID;
-  let secondTime = 0;
+  let startTimestamp = 0;
   let recording = false;
   let tdToRename;
   let fileName;
@@ -70,10 +76,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const xmlns = "http://www.w3.org/2000/svg";
 
     list.forEach((it) => {
-      const extension = getExtension(it);
+      const extension = getExtension(it.name);
 
       const tr = document.createElement("tr");
       const name = document.createElement("td");
+      const MB = document.createElement("td");
       const actions = document.createElement("td");
       const divActions = document.createElement("div");
 
@@ -114,15 +121,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
       actions.appendChild(divActions);
 
-      tr.setAttribute("data-name", it);
+      tr.setAttribute("data-name", it.name);
       tr.appendChild(name);
+      tr.appendChild(MB);
       tr.appendChild(actions);
 
-      name.innerHTML = extension === ".zip" ? `${zipFileSvg} ${it}` : it;
+      name.innerHTML =
+        extension === ".zip" ? `${zipFileSvg} ${it.name}` : it.name;
+
+      MB.classList.add("size");
+      MB.innerText = it.size || "0.00";
 
       cleanTable();
       tbody.insertBefore(tr, tbody.firstChild);
     });
+  };
+
+  const updateItemTable = (item) => {
+    const firstChild = tbody.querySelector("tr");
+
+    firstChild.querySelector(".size").innerText = item.size;
   };
 
   const cleanTable = () => {
@@ -155,9 +173,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const response = await axios.post(BACK_URL + `/genZip`);
 
-      console.log(response);
-
-      if (response.data) setTable([response.data.file]);
+      if (response.data) setTable([response.data.file[0]]);
     } catch (err) {
       console.log(err);
     }
@@ -209,16 +225,6 @@ document.addEventListener("DOMContentLoaded", () => {
     deleteContainer.style.display = "flex";
   };
 
-  btnRedirect.addEventListener("click", (e) => {
-    e.preventDefault();
-
-    if (recording) {
-      alertContainer.style.display = "flex";
-    } else {
-      window.location.replace(e.target.href);
-    }
-  });
-
   allBtnDownload.forEach((it) => {
     it.addEventListener("click", downloadFile);
   });
@@ -229,6 +235,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
   allBtnDelete.forEach((it) => {
     it.addEventListener("click", deleteFile);
+  });
+
+  btnPower.addEventListener("click", async () => {
+    if (recording) return addMessage("Você esta gravando ponto!", true);
+
+    try {
+      const response = await axios.post(BACK_URL + `/powerOff`);
+
+      if (response.data && response.data.offline) {
+        document.querySelector("main").innerHTML = `
+          <pre style="color: var(--main-color)" >GeoPPP Desligado!</pre>
+        `;
+      } else {
+        addMessage("Erro ao desligar o sistema!", true);
+      }
+    } catch (error) {
+      addMessage("Erro ao desligar o sistema!", true);
+    }
   });
 
   document.querySelector("#genZip").addEventListener("click", genZip);
@@ -243,14 +267,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
       containerRecord.removeChild(divTime);
       time.innerText = "00:00";
-      secondTime = 0;
       intervalID = clearInterval(intervalID);
 
       try {
         const response = await axios.post(BACK_URL + "/stopRecord");
 
-        if (response.data) setTable([name]);
-        recording = false;
+        if (response.data) recording = false;
       } catch (error) {
         console.error("Erro ao parar a gravação", error);
       }
@@ -272,17 +294,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (name === newFileName) return;
 
-      await axios.post(BACK_URL + "/renameFile", {
+      const response = await axios.post(BACK_URL + "/renameFile", {
         file: name,
         newName: newFileName,
       });
 
-      tdToRename.innerText =
-        name.slice(0, 11) + newFileName.replace(/[\/\\\s]+/g, "-");
-      fileName.setAttribute(
-        "data-name",
-        name.slice(0, 11) + newFileName.replace(/[\/\\\s]+/g, "-")
-      );
+      if (response.data) {
+        Array.from(tdToRename.childNodes).map((node) => {
+          console.log(node.textContent.trim());
+
+          if (node.textContent.trim() === name)
+            node.textContent = response.data.newName;
+        });
+
+        fileName.setAttribute("data-name", response.data.newName);
+      }
     } catch (err) {
       console.log(err);
     } finally {
@@ -326,7 +352,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     nameContainer.style.display = "none";
 
+    if (log.innerText.trim().toLowerCase() === "buscando...")
+      return addMessage("Esta Buscando GPS. Aguarde!", true);
+    else if (
+      log.innerText.trim() == "0" ||
+      log.innerText.trim().toLowerCase() === "erro"
+    )
+      return addMessage("Sem Acesso ao GPS!", true);
+
     debounceTimeout = setTimeout(async () => {
+      startTimestamp = Date.now();
       icon.setAttribute("href", "#stopIcon");
       label.textContent = "PARAR";
       btnRecord.classList.add("playing");
@@ -345,16 +380,13 @@ document.addEventListener("DOMContentLoaded", () => {
           containerRecord.appendChild(divTime);
 
           intervalID = setInterval(() => {
-            secondTime++;
-
-            const minutes = Math.floor(secondTime / 60);
-            const seconds = secondTime % 60;
-
-            const formattedTime = `${String(minutes).padStart(2, "0")}:${String(
-              seconds
-            ).padStart(2, "0")}`;
-
-            time.innerText = formattedTime;
+            const elapsedMs = Date.now() - startTimestamp;
+            const elapsedSec = Math.floor(elapsedMs / 1000);
+            const minutes = Math.floor(elapsedSec / 60);
+            const seconds = elapsedSec % 60;
+            time.innerText =
+              `${String(minutes).padStart(2, "0")}:` +
+              `${String(seconds).padStart(2, "0")}`;
           }, 1000);
         }
       } catch (error) {
@@ -375,7 +407,25 @@ document.addEventListener("DOMContentLoaded", () => {
     window.location.replace("/gpsd");
   });
 
-  window.addEventListener("load", () => {
-    axios.post(BACK_URL + "/stopRecord");
+  const es = new EventSource("/gpsdStream");
+
+  es.onmessage = (e) => {
+    log.textContent = e.data;
+  };
+
+  es.addEventListener("error", (e) => {
+    log.textContent = "ERRO";
+  });
+  es.addEventListener("end", (e) => {
+    log.textContent = "[END] " + e.data;
+    es.close();
+  });
+
+  socket.on("recording", (msg) => {
+    if (!msg) return;
+
+    if (tbody.querySelector("td").innerText === msg[0].name)
+      updateItemTable(msg[0]);
+    else setTable([msg][0]);
   });
 });

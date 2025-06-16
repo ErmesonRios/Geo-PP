@@ -1,6 +1,6 @@
 {
-  "name": "rtkbase",
-  "version": "1.0.0",
+  "name": "geoppp",
+  "version": "2.0.0",
   "main": "index.mjs",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -9,11 +9,13 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "archiver": "^7.0.1",
+    "archiver": "^5.3.1",
     "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
     "execa": "^9.5.3",
     "express": "^5.1.0",
     "express-handlebars": "^8.0.2",
-    "node-gpsd": "^0.3.4"
+    "node-gpsd": "^0.3.4",
+    "socket.io": "^4.8.1"
   }
 }
