@@ -262,6 +262,8 @@ div#gpsdContainer {
   color: rgb(255, 255, 255);
   animation: alert 0.5s alternate infinite;
   aspect-ratio: 1/1;
+  width: 120px;
+  height: 120px;
 }
 
 #gpsdContainer svg {

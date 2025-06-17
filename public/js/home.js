@@ -347,7 +347,7 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         const response = await axios.post(BACK_URL + "/stopRecord");
 
-        if (response.data) recording = false;
+        if (response.ok) recording = false;
       } catch (error) {
         console.error("Erro ao parar a gravação", error);
       }
