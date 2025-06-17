@@ -1,5 +1,4 @@
 import { Server as SocketIOServer } from "socket.io";
-import RtkController from "../controllers/RtkController.mjs";
 
 let io;
 
@@ -9,7 +8,6 @@ export const initSocket = (httpServer) => {
     console.log("🔌 Cliente conectado", socket.id);
 
     socket.on("disconnect", () => {
-      RtkController.stopRecord();
       console.log("❌ Cliente desconectado:", socket.id);
     });
   });

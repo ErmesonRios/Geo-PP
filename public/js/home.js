@@ -1,6 +1,7 @@
 import { io } from "socket.io-client";
 
 const socket = io(BACK_URL);
+const GRAFIC_LENGTH = 25;
 
 const zipFileSvg = `
 <svg class="zipFile" xmlns="http://www.w3.org/2000/svg">
@@ -9,6 +10,80 @@ const zipFileSvg = `
 `;
 
 document.addEventListener("DOMContentLoaded", () => {
+  const ctx = document.getElementById("grafic").getContext("2d");
+
+  const grafic = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: new Array(GRAFIC_LENGTH).fill(""),
+      datasets: [
+        {
+          label: "",
+          data: new Array(GRAFIC_LENGTH).fill(0),
+          backgroundColor: (ctx) => {
+            const value = ctx.dataset.data[ctx.dataIndex];
+            return value >= 35
+              ? "rgba(0, 255, 0, 0.5)"
+              : value >= 20
+              ? "rgba(255, 255, 0, 1)"
+              : "rgba(255, 0, 0, 0.5)";
+          },
+          borderColor: (ctx) => {
+            const value = ctx.dataset.data[ctx.dataIndex];
+            return value >= 35
+              ? "rgba(0, 255, 0, 1)"
+              : value >= 20
+              ? "rgba(255, 255, 0, 1)"
+              : "rgba(255, 0, 0, 1)";
+          },
+          borderWidth: 1,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false,
+        },
+        title: {
+          display: true,
+          position: "bottom", // top | bottom
+          text: "",
+          color: "rgb(0, 255, 0)",
+          font: {
+            family: "Arial",
+            size: 16,
+            weight: "bold",
+          },
+        },
+      },
+      scales: {
+        x: {
+          display: false,
+        },
+        y: {
+          beginAtZero: true,
+          ticks: {
+            color: "white",
+            font: {
+              size: 12,
+              family: "Arial",
+            },
+          },
+          grid: {
+            color: "rgba(255, 255, 255, 0.3)",
+            lineWidth: 1,
+            borderDash: [],
+            drawOnChartArea: true,
+            drawTicks: true,
+          },
+        },
+      },
+    },
+  });
+
   const allBtnDownload = Array.from(document.querySelectorAll(".btnDownload"));
   const allBtnRename = Array.from(document.querySelectorAll(".btnRename"));
   const allBtnDelete = Array.from(document.querySelectorAll(".btnDelete"));
@@ -428,4 +503,32 @@ document.addEventListener("DOMContentLoaded", () => {
       updateItemTable(msg[0]);
     else setTable([msg][0]);
   });
+
+  socket.on("datasets", (msg) => {
+    const { pdop } = msg;
+    if (pdop <= 2) {
+      grafic.options.plugins.title.text = "FIXO 3D";
+      grafic.options.plugins.title.color = "rgb(0, 255, 0)";
+    } else if (pdop <= 5) {
+      grafic.options.plugins.title.text = "FLUTUANTE";
+      grafic.options.plugins.title.color = "rgb(255, 255, 0)";
+    } else {
+      grafic.options.plugins.title.text = "SINGLE";
+      grafic.options.plugins.title.color = "rgb(255, 0, 0)";
+    }
+
+    if (msg.datasets) grafic.data.datasets[0].data = msg.datasets;
+    else grafic.data.datasets[0].data = new Array(GRAFIC_LENGTH).fill(0);
+    grafic.update();
+  });
+});
+
+window.addEventListener("pagehide", async () => {
+  try {
+    const response = await axios.post(BACK_URL + "/stopRecord");
+
+    if (response.data) recording = false;
+  } catch (error) {
+    console.error("Erro ao parar a gravação", error);
+  }
 });

@@ -29,15 +29,18 @@
       <p><span>&copy;</span> Lopes</p>
     </footer>
   </body>
-  <script src="/js/axios/dist/axios.min.js"></script>
+  <script src="/js/axios.min.js"></script>
+
   <script type="importmap">
-    {
-      "imports": {
-        "socket.io-client": "https://cdn.socket.io/4.8.1/socket.io.esm.min.js"
-      }
+  {
+    "imports": {
+      "socket.io-client": "/js/socket.io.esm.min.js"
     }
+  }
   </script>
-  
+
+  <script src="/js/chart.umd.min.js"></script>
+
   <script>
     const BACK_URL = "http://{{ip}}";
     const messagesContainer = document.querySelector(".flashMessage");

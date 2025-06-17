@@ -249,12 +249,6 @@ div#renameContainer > div > div,
   gap: 20px;
 }
 
-div#gpsContainer {
-  display: flex;
-  flex-direction: row;
-  width: 100%;
-}
-
 /* GPSD */
 div#gpsdContainer {
   display: flex;
@@ -278,6 +272,16 @@ div#gpsdContainer {
 
 #gpsdContainer span {
   font-size: 1rem;
+}
+
+#graficContainer {
+  width: 100%;
+  max-width: 800px;
+}
+
+#grafic {
+  width: 100% !important;
+  height: 150px;
 }
 
 @keyframes alert {

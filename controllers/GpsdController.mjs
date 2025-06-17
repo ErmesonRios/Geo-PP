@@ -1,6 +1,7 @@
 import gpsd from "node-gpsd";
 import { configDotenv } from "dotenv";
 import { execa } from "execa";
+import { getIO } from "../utils/socket.mjs";
 configDotenv();
 
 const TCP_PORT = process.env.TCP_PORT;
@@ -9,8 +10,11 @@ class GpsdController {
   static daemon = null;
   static listener = null;
   static dateIsSet = false;
+  static io = getIO();
 
   static async gpsdStream(req, res) {
+    if (!GpsdController.io) GpsdController.io = getIO();
+
     if (!GpsdController.daemon) {
       GpsdController.startGpsd();
     }
@@ -40,9 +44,16 @@ class GpsdController {
     });
 
     GpsdController.listener.on("SKY", (msg) => {
+      const { pdop } = msg;
+
       if (Array.isArray(msg.satellites)) {
-        const usedCount = msg.satellites.filter((s) => s.used).length;
-        res.write(`data: ${usedCount}\n\n`);
+        const used = msg.satellites.filter((s) => s.used);
+        const datasets = used.map((it) => {
+          return it.ss;
+        });
+
+        GpsdController.io.emit("datasets", { pdop, datasets });
+        res.write(`data: ${used.length}\n\n`);
       }
     });
 
